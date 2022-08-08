@@ -1,7 +1,7 @@
 [mqtt]
 client_id=tmu2mqtt
 host=localhost
-keep_alive=60
+
 
 [tmu1]
 port=/dev/ttyUSB0
