@@ -75,15 +75,18 @@ class Config:
                 self.help()
                 sys.exit()
             elif opt in ("-c", "--config"):
+                print('Using configuration file ', arg)
                 self.configFile = arg
             elif opt in ("-v", "--verbose"):
-                if arg.lower == "error":
+                print("Verbose level:", arg)
+                if arg.lower() == "error":
                     self.logLevel = logging.ERROR
-                if arg.lower == "info":
+                if arg.lower() == "info":
                     self.logLevel = logging.INFO
-                if arg.lower == "debug":
+                if arg.lower() == "debug":
                     self.logLevel = logging.DEBUG
             elif opt in ("-l", "--logfile"):
+                print("Log file:", arg)
                 self.logfile = arg
 
     def read_config(self, cf):
@@ -121,11 +124,13 @@ class TmuSensor:
 
 
 class TMU2MQTT(threading.Thread):
-    def __init__(self, mqttClient: mqtt.Client):
+    def __init__(self, id: str, mqttClient: mqtt.Client):
         threading.Thread.__init__(self)
         self.running: bool = True
         self.tmuPorts: List[TmuSensor] = []
         self.log = logging.getLogger("tmu2mqtt")
+        self.id = id
+        self.name = id
 
         self.mqtt = mqttClient
         self.mqtt.on_connect = self._on_mqtt_connect
@@ -162,6 +167,7 @@ class TMU2MQTT(threading.Thread):
                     # sleep for some time as TMUs are reporting once per 10 seconds anyway
                     time.sleep(1)
         except:
+            print("Exception in processing loop")
             self.log.fatal("Exception in processing loop")
             self.stop()
             exit(2)
@@ -174,14 +180,20 @@ class TMU2MQTT(threading.Thread):
     # read all ports and store data in buffer
     def readTmuPorts(self):
         for port in self.tmuPorts:
-            data = port.port.read()
-            if data != b'':
-                self.log.debug("received id=%s data=%s",
-                               port.id, data.decode('ASCII'))
-                port.buffer.join(data)
+            try:
+                data = port.port.read(port.port.in_waiting)
+                if data != b'':
+                    self.log.debug("received id=%s data=%s",
+                                   port.id, data.decode('ASCII'))
+                    port.buffer.extend(data)
+            except serial.SerialException as e:
+                self.log.error(
+                    "Error reading TMU port id=%s error=%s", port.id, e)
+                continue
 
     # process buffers of TMU ports
     def processTmuPorts(self):
+        self.log.debug("processing TMU ports")
         for port in self.tmuPorts:
             idx = port.buffer.find(b'\x0D')
             # if x0D found
@@ -191,10 +203,10 @@ class TMU2MQTT(threading.Thread):
 
     def processTmuData(self, id: str, data: str):
         self.log.debug("processing TMU data id=%s data=%s", id, data)
-        if data[0] != "*" and len(data) < 11:
+        if data[0] != "*" or len(data) < 11:
             self.log.warning("Invalid data received: %s", data)
             return
-        temp = data[1:10]
+        temp = data[5:11]
         self.log.info("Temperature id=%s temp=%s", id, temp)
         self.publish(id, temp)
 
@@ -219,10 +231,13 @@ class TMU2MQTT(threading.Thread):
 
     # publish a message
     def publish(self, topic: str, message, qos=1, retain=False):
-        self.log.debug("Publishing topic=%s/%s msg=%s",
-                       self.mqtt._client_id, topic, message)
-        mid = self.mqtt.publish(self.mqtt._client_id+"/"+topic,
-                                message, qos, retain)[1]
+        t = self.id+"/"+topic
+        self.log.debug("Publishing topic=%s msg=%s", t, message)
+        try:
+            mid = self.mqtt.publish(t, message, qos, retain)[1]
+        except Exception as e:
+            self.log.error("Error publishing to mqtt err=%s", e)
+            return False
 
 
 def stop_script_handler(msg: str, logger: logging.Logger):
@@ -267,7 +282,7 @@ mqtt.username_pw_set(cfg.mqtt.username, cfg.mqtt.password)
 mqtt.connect_async(cfg.mqtt.host, cfg.mqtt.port, cfg.mqtt.keepAlive)
 
 log.info("Creating tmu2mqtt bridge")
-bridge = TMU2MQTT(mqtt)
+bridge = TMU2MQTT(cfg.mqtt.clientId, mqtt)
 
 log.info("Opening serial ports for TMU sensors")
 for tmu in cfg.tmus:

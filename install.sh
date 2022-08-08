@@ -41,7 +41,7 @@ sudo cp ./tmu2mqtt.py /opt/${svcfld}
 
 if [ -f /etc/${svcname}.cfg ] 
 then 
-    echo "Config file exists"
+    echo "Configuration file already exists. Keeping existing configuration."
 else
     echo "Config file does not exist"
     echo "Copying example configuration to /etc"
