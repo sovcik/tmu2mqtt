@@ -121,7 +121,7 @@ class Config:
                     exit(1)
                 id = config.get(section, 'id', fallback=section)
                 qos = config.get(section, 'qos', fallback=1)
-                t = TMUConfig(id, port, qos)
+                t = TMUConfig(id=id, port=port, qos=qos)
                 self.tmus.append(t)
 
 
@@ -129,8 +129,8 @@ class Config:
 class TmuSensor:
     id: str
     port: serial.Serial
-    buffer: bytearray = bytearray()
     qos: int = 1
+    buffer: bytearray = bytearray()
 
 
 class TMU2MQTT(threading.Thread):
@@ -166,25 +166,27 @@ class TMU2MQTT(threading.Thread):
         self.mqtt.loop_start()
 
         print("Starting processing loop")
-        try:
-            while self.running:
-                if self.mqtt_reconnect > 0:
-                    self.log.warning("MQTT Reconnecting...")
-                    self.mqtt.reconnect()
-                else:
-                    self.readTmuPorts()
-                    self.processTmuPorts()
-                    # sleep for some time as TMUs are reporting once per 10 seconds anyway
-                    time.sleep(1)
-        except:
-            print("Exception in processing loop")
-            self.log.fatal("Exception in processing loop")
-            self.stop()
-            exit(2)
+
+        while self.running:
+            # try:
+            if self.mqtt_reconnect > 0:
+                self.log.warning("MQTT Reconnecting...")
+                self.mqtt.reconnect()
+            else:
+                self.readTmuPorts()
+                self.processTmuPorts()
+                # sleep for some time as TMUs are reporting once per 10 seconds anyway
+                time.sleep(1)
+
+        # except:
+        #    print("Exception in processing loop")
+        #    self.log.fatal("Exception in processing loop")
+        #    self.stop()
+        #    exit(2)
 
     def addPort(self, id: str, port: serial.Serial, qos: int):
         self.log.info("Adding serial port id=%s at serial port=%s", id, port)
-        sensor = TmuSensor(id, port, qos)
+        sensor = TmuSensor(id=id, port=port, qos=qos)
         self.tmuPorts.append(sensor)
 
     # read all ports and store data in buffer
