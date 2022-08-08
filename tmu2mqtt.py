@@ -24,13 +24,13 @@ class MqttConfig:
     clientId: str = "tmu2mqtt"
     keepAlive: int = "60"
     port: int = 1883
-    qos: int = 1
 
 
 @dataclass
 class TMUConfig:
     id: str
     port: str
+    qos: int = 1
 
 
 class Config:
@@ -109,7 +109,6 @@ class Config:
         self.mqtt.username: str = seccfg.get('username')
         self.mqtt.password: str = seccfg.get('password')
         self.mqtt.clientId: str = seccfg.get('client_id')
-        self.mqtt.qos: int = seccfg.getint('qos', 1)
         self.mqtt.keepAlive: int = seccfg.getint('keepalive', 60)
         self.mqtt.port: int = seccfg.getint('port', 1883)
 
@@ -183,9 +182,9 @@ class TMU2MQTT(threading.Thread):
             self.stop()
             exit(2)
 
-    def addPort(self, id: str, port: serial.Serial):
+    def addPort(self, id: str, port: serial.Serial, qos: int):
         self.log.info("Adding serial port id=%s at serial port=%s", id, port)
-        sensor = TmuSensor(id, port)
+        sensor = TmuSensor(id, port, qos)
         self.tmuPorts.append(sensor)
 
     # read all ports and store data in buffer
@@ -310,7 +309,7 @@ for tmu in cfg.tmus:
         mqtt.disconnect()
         bridge.stop()
         exit(1)
-    bridge.addPort(tmu.id, ser)
+    bridge.addPort(tmu.id, ser, tmu.qos)
 
 # start bridge
 bridge.start()
