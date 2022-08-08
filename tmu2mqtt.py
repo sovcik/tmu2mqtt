@@ -100,10 +100,15 @@ class Config:
             print('Error: configuration file is not correct or missing')
             exit(1)
 
+        if seccfg.get('client_id') is None:
+            print(
+                'Error: section [mqtt] is missing required parameter "client_id"')
+            exit(1)
+
         self.mqtt.host: str = seccfg.get('host', 'localhost')
         self.mqtt.username: str = seccfg.get('username')
         self.mqtt.password: str = seccfg.get('password')
-        self.mqtt.clientId: str = seccfg.get('id', 'tmu2mqtt')
+        self.mqtt.clientId: str = seccfg.get('client_id')
         self.mqtt.qos: int = seccfg.getint('qos', 1)
         self.mqtt.keepAlive: int = seccfg.getint('keepalive', 60)
         self.mqtt.port: int = seccfg.getint('port', 1883)
@@ -111,8 +116,13 @@ class Config:
         for section in config.sections():
             if section.startswith('tmu'):
                 port = config.get(section, 'port')
+                if (port is None):
+                    print(
+                        'Error: section ['+section+'] is missing required parameter "port"')
+                    exit(1)
                 id = config.get(section, 'id', fallback=section)
-                t = TMUConfig(id, port)
+                qos = config.get(section, 'qos', fallback=1)
+                t = TMUConfig(id, port, qos)
                 self.tmus.append(t)
 
 
@@ -121,6 +131,7 @@ class TmuSensor:
     id: str
     port: serial.Serial
     buffer: bytearray = bytearray()
+    qos: int = 1
 
 
 class TMU2MQTT(threading.Thread):
@@ -198,17 +209,18 @@ class TMU2MQTT(threading.Thread):
             idx = port.buffer.find(b'\x0D')
             # if x0D found
             if idx != -1:
-                self.processTmuData(port.id, port.buffer[:idx].decode('ASCII'))
+                self.processTmuData(
+                    port.id, port.buffer[:idx].decode('ASCII'), port.qos)
                 port.buffer = port.buffer[idx+1:]
 
-    def processTmuData(self, id: str, data: str):
+    def processTmuData(self, id: str, data: str, qos: int = 1):
         self.log.debug("processing TMU data id=%s data=%s", id, data)
         if data[0] != "*" or len(data) < 11:
             self.log.warning("Invalid data received: %s", data)
             return
         temp = data[5:11]
         self.log.info("Temperature id=%s temp=%s", id, temp)
-        self.publish(id, temp)
+        self.publish(id, temp, qos)
 
     def _on_mqtt_connect(self, client, userdata, flags, rc):
         self.mqtt_connected = rc
@@ -230,7 +242,7 @@ class TMU2MQTT(threading.Thread):
             self.mqtt_reconnect_delay = 10
 
     # publish a message
-    def publish(self, topic: str, message, qos=1, retain=False):
+    def publish(self, topic: str, message, qos: int, retain=False):
         t = self.id+"/"+topic
         self.log.debug("Publishing topic=%s msg=%s", t, message)
         try:

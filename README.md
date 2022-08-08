@@ -22,7 +22,21 @@ File has ini-style structure.
 Required section is `mqtt` containing configuration needed for MQTT client.
 At least one section `tmuN` shall be present, where N is number from 1 to 9.
 
-## Example
+Collected data will be published to mqtt broker topic `{mqtt.client_id}/{tmuNN.id}`
+
+## Section \[mqtt\]
+* **client_id** - required mqtt client id - has to be unique within mqtt broker. 
+* **host** - optional mqtt host name or ip address. Default is `localhost`
+* **port** - optional mqtt broker TCP port. Default is `1883`
+* **username** - optional username. Default is none.
+* **password** - optional password. Default is none.
+
+## Section \[tmuNNN\]
+* **port** - required serial port device name, e.g. /dev/ttyUSB0
+* **id** - optional TMU device identifier. Default is section name.
+* **qos** - optional mqtt QOS level for data from this port. Default is `1`.
+
+## Example (minimum)
 ```
 [mqtt]
 id=tmu2mqtt

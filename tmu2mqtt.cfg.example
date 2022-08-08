@@ -1,10 +1,7 @@
 [mqtt]
-id=tmu2mqtt
+client_id=tmu2mqtt
 host=localhost
-username=
-password=
-qos=1
+keep_alive=60
 
 [tmu1]
-id=tmu1
 port=/dev/ttyUSB0
