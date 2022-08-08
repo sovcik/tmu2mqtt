@@ -25,15 +25,15 @@ function check_running {
 }
 
 echo "Checking if python3 is installed"
-python3 --version > /dev/null
+sudo python3 --version > /dev/null
 check_installed
 
 echo "Checking if pip is installed"
-python3 -m pip --version > /dev/null
+sudo python3 -m pip --version > /dev/null
 check_installed
 
 echo "Installing required python packages"
-python3 -m pip install paho-mqtt pyserial
+sudo python3 -m pip install paho-mqtt pyserial
 
 echo "Copying script to /opt/${svcfld} folder"
 sudo mkdir /opt/${svcfld}

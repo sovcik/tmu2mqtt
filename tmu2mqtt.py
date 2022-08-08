@@ -18,13 +18,13 @@ runScript = True
 
 @dataclass
 class MqttConfig:
-    host: str
-    username: str
-    password: str
-    clientId: str
-    keepAlive: int
-    port: int
-    qos: int
+    host: str = "localhost"
+    username: str = ""
+    password: str = ""
+    clientId: str = "tmu2mqtt"
+    keepAlive: int = "60"
+    port: int = 1883
+    qos: int = 1
 
 
 @dataclass
@@ -39,14 +39,16 @@ class Config:
         self.mqtt: MqttConfig = MqttConfig()
         self.logfile: str = "./tmu2mqtt.log"
         self.logLevel = logging.INFO
-        self.configFile: str = './tmu2mqtt.cfg'
-
+        self.configFile: str = ""
         self.tmus: List[TMUConfig] = []
 
         self.parse_args(argv)
 
         if len(self.configFile) > 0:
             self.read_config(self.configFile)
+        else:
+            self.help()
+            exit(1)
 
     def help(self):
         print('Usage: '+sys.argv[0] +
@@ -111,7 +113,8 @@ class Config:
             if section.startswith('tmu'):
                 port = config.get(section, 'port')
                 id = config.get(section, 'id', fallback=section)
-                self.tmus.append({port: port, id: id})
+                t = TMUConfig(id, port)
+                self.tmus.append(t)
 
 
 @dataclass
@@ -129,14 +132,21 @@ class TMU2MQTT(threading.Thread):
         self.log = logging.getLogger("tmu2mqtt")
 
         self.mqtt = mqttClient
-        self.mqtt.on_message = self._on_message
-        self.mqtt.on_publish = self._on_publish
         self.mqtt.on_connect = self._on_mqtt_connect
         self.mqtt_reconnect = 0
 
     def stop(self):
         self.log.info("Stopping tmu2mqtt service")
         self.running = False
+        # stop mqtt
+        self.mqtt.loop_stop()
+        self.mqtt.disconnect()
+        # close serial ports
+        for tmu in self.tmuPorts:
+            if tmu.port.isOpen():
+                tmu.port.close()
+        # done here
+        self.log.info("tmu2mqtt service stopped")
 
     def run(self):
         print("Starting " + self.name)
@@ -145,13 +155,20 @@ class TMU2MQTT(threading.Thread):
         self.mqtt.loop_start()
 
         print("Starting processing loop")
-        while self.running:
-            if self.mqtt_reconnect > 0:
-                self.log.warning("MQTT Reconnecting...")
-                self.mqtt.reconnect()
-            else:
-                self.readTmuPorts()
-                self.processTmuPorts()
+        try:
+            while self.running:
+                if self.mqtt_reconnect > 0:
+                    self.log.warning("MQTT Reconnecting...")
+                    self.mqtt.reconnect()
+                else:
+                    self.readTmuPorts()
+                    self.processTmuPorts()
+                    # sleep for some time as TMUs are reporting once per 10 seconds anyway
+                    time.sleep(1)
+        except:
+            self.log.fatal("Exception in processing loop")
+            self.stop()
+            exit(2)
 
     def addPort(self, id, port):
         self.log.info("Adding serial port id=%s at serial port=%s", id, port)
@@ -184,10 +201,6 @@ class TMU2MQTT(threading.Thread):
         temp = data[1:10]
         self.log.info("Temperature id=%s temp=%s", id, temp)
         self.publish(id, temp)
-
-    def _on_publish(self, client, userdata, mid):
-        return
-        # self.receivedMessages.append(mid)
 
     def _on_mqtt_connect(self, client, userdata, flags, rc):
         self.mqtt_connected = rc
@@ -239,7 +252,8 @@ log.addHandler(logging.StreamHandler())
 
 if len(cfg.tmus) == 0:
     log.fatal("No configuration for TMU devices found.")
-    sys.exit("No configuration for TMU devices found.")
+    print("No configuration for TMU devices found.")
+    exit(1)
 
 # handle gracefull end in case of service stop
 signal.signal(signal.SIGTERM, lambda signo,
@@ -254,7 +268,7 @@ log.info("Creating MQTT client for host=%s id=%s",
          cfg.mqtt.host, cfg.mqtt.clientId)
 mqtt = mqtt.Client(cfg.mqtt.clientId)
 mqtt.username_pw_set(cfg.mqtt.username, cfg.mqtt.password)
-mqtt.connect_async(cfg.mqtt.host, cfg.mqtt.port, cfg.mqtt.keepalive)
+mqtt.connect_async(cfg.mqtt.host, cfg.mqtt.port, cfg.mqtt.keepAlive)
 
 log.info("Creating tmu2mqtt bridge")
 bridge = TMU2MQTT(mqtt)
@@ -265,13 +279,15 @@ for tmu in cfg.tmus:
         # open serial port in non-blocking mode
         ser = serial.Serial(tmu.port, timeout=0)
         if ser.closed:
-            log.fatal("Unable to open serial port %s", cfg.serialPort)
-            sys.exit("Unable to open serial port")
+            log.fatal("Serial port %s is closed", tmu.port)
+            raise Exception("Serial port %s is closed" % tmu.port)
         bridge.addPort(tmu.id, ser)
     except:
-        log.error("Error opening serial port of TMU id=%s port=%s ",
+        log.fatal("Error opening serial port of TMU id=%s port=%s ",
                   tmu.id, tmu.port)
-        sys.exit("Error opening serial port %s", tmu.port)
+        mqtt.disconnect()
+        bridge.stop()
+        exit(1)
 
 
 # start bridge
