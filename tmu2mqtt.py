@@ -55,7 +55,7 @@ class Config:
               ' -c <configfile> -v <verbose level> -l <logfile>')
         print()
         print('  -c | --config: ini-style configuration file, default is '+self.configFile)
-        print('  -v | --verbose: 1-fatal, 2-error, 3-warning, 4-info, 5-debug')
+        print('  -v | --verbose: error, info, debug')
         print('  -l | --logfile: log file name,default is '+self.logfile)
         print()
         print('Example: '+sys.argv[0] +
@@ -77,15 +77,11 @@ class Config:
             elif opt in ("-c", "--config"):
                 self.configFile = arg
             elif opt in ("-v", "--verbose"):
-                if arg == "1":
-                    self.logLevel = logging.FATAL
-                if arg == "2":
+                if arg.lower == "error":
                     self.logLevel = logging.ERROR
-                if arg == "3":
-                    self.logLevel = logging.WARNING
-                if arg == "4":
+                if arg.lower == "info":
                     self.logLevel = logging.INFO
-                if arg == "5":
+                if arg.lower == "debug":
                     self.logLevel = logging.DEBUG
             elif opt in ("-l", "--logfile"):
                 self.logfile = arg
@@ -119,9 +115,9 @@ class Config:
 
 @dataclass
 class TmuSensor:
-    port: serial.Serial
     id: str
-    buffer: bytearray
+    port: serial.Serial
+    buffer: bytearray = bytearray()
 
 
 class TMU2MQTT(threading.Thread):
@@ -170,9 +166,9 @@ class TMU2MQTT(threading.Thread):
             self.stop()
             exit(2)
 
-    def addPort(self, id, port):
+    def addPort(self, id: str, port: serial.Serial):
         self.log.info("Adding serial port id=%s at serial port=%s", id, port)
-        sensor = TmuSensor(port, id)
+        sensor = TmuSensor(id, port)
         self.tmuPorts.append(sensor)
 
     # read all ports and store data in buffer
@@ -277,18 +273,17 @@ log.info("Opening serial ports for TMU sensors")
 for tmu in cfg.tmus:
     try:
         # open serial port in non-blocking mode
-        ser = serial.Serial(tmu.port, timeout=0)
+        ser = serial.Serial(tmu.port, timeout=0, baudrate=9600)
         if ser.closed:
             log.fatal("Serial port %s is closed", tmu.port)
-            raise Exception("Serial port %s is closed" % tmu.port)
-        bridge.addPort(tmu.id, ser)
-    except:
-        log.fatal("Error opening serial port of TMU id=%s port=%s ",
-                  tmu.id, tmu.port)
+            raise Exception()
+    except serial.SerialException as e:
+        log.fatal("Error opening serial port of TMU id=%s port=%s error=%s",
+                  tmu.id, tmu.port, e)
         mqtt.disconnect()
         bridge.stop()
         exit(1)
-
+    bridge.addPort(tmu.id, ser)
 
 # start bridge
 bridge.start()

@@ -8,8 +8,3 @@ qos=1
 [tmu1]
 id=tmu1
 port=/dev/ttyUSB0
-
-[tmu2]
-id=tmu2
-port=/dev/ttyUSB1
-

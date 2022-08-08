@@ -36,16 +36,29 @@ echo "Installing required python packages"
 sudo python3 -m pip install paho-mqtt pyserial
 
 echo "Copying script to /opt/${svcfld} folder"
-sudo mkdir /opt/${svcfld}
+[ -d /opt/${svcfld} ] || sudo mkdir /opt/${svcfld}
 sudo cp ./tmu2mqtt.py /opt/${svcfld}
 
-echo "Copying default configuration to /etc"
-sudo cp ./${svcname}.cfg.example /etc/${svcname}.cfg
+if [ -f /etc/${svcname}.cfg ] 
+then 
+    echo "Config file exists"
+else
+    echo "Config file does not exist"
+    echo "Copying example configuration to /etc"
+    sudo cp ./${svcname}.cfg.example /etc/${svcname}.cfg
+fi
 
 echo "Creating log file and configuring logrotate"
-sudo touch /var/log/${svcname}.log
-sudo cp ./${svcname}.logrotate /etc/logrotate.d/${svcname}
-sudo systemctl restart logrotate
+[ -f /var/log/${svcname}.log ] || sudo touch /var/log/${svcname}.log
+
+if [ -f /etc/logrotate.d/${svcname} ] 
+then 
+    echo "Logrotate already configured. Keeping existing configuration."
+else
+    echo "Copying default logrotate configuration"
+    sudo cp ./${svcname}.logrotate /etc/logrotate.d/${svcname}
+    sudo systemctl restart logrotate
+fi
 
 echo "Creating service"
 sudo cp ./${svcname}.service /etc/systemd/system
@@ -55,7 +68,7 @@ sudo systemctl enable ${svcname}.service
 echo "Starting service"
 sudo systemctl start ${svcname}.service
 
-echo "Installation complete"
+echo "*** Installation complete"
 echo "Modify script configuration in /etc/${svcname}.cfg"
 echo "Restart script service using: sudo systemctl restart ${svcname}"
 echo "Check service status using: sudo systemctl status ${svcname}"
