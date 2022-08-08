@@ -1,0 +1,10 @@
+[Unit]
+Description=TMU USB thermometer to MQTT bridge
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/tmu2mqtt/tmu2mqtt.py -c /etc/tmu2mqtt.cfg -l /var/log/tmu2mqtt.log -v 4
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

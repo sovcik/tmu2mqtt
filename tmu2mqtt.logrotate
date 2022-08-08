@@ -1,0 +1,9 @@
+/var/log/tmu2mqtt.log {
+    daily
+    rotate 3
+    missingok
+    dateext
+    copytruncate
+    compress
+    delaycompress
+}
