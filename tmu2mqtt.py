@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import serial
+import serial  # from pySerial
 import threading
 import paho.mqtt.client as mqtt
 import time
@@ -37,8 +37,6 @@ class Config:
     # client, user and device details
     def __init__(self, argv):
         self.mqtt: MqttConfig = MqttConfig()
-
-        #typing.Dict = {"host": "", "port": 1883, "username": "", "password": "", "clientId": "", "keepAlive": 60, "qos": 1}
         self.logfile: str = "./tmu2mqtt.log"
         self.logLevel = logging.INFO
         self.configFile: str = './tmu2mqtt.cfg'

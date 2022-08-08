@@ -33,7 +33,7 @@ python3 -m pip --version > /dev/null
 check_installed
 
 echo "Installing required python packages"
-python3 -m pip install paho-mqtt serial
+python3 -m pip install paho-mqtt pyserial
 
 echo "Copying script to /opt/${svcfld} folder"
 sudo mkdir /opt/${svcfld}
